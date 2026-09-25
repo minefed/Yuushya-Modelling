@@ -23,6 +23,9 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import static com.yuushya.modelling.registries.YuushyaRegistries.BLOCKS;
 import static net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_FACING;
 
@@ -31,15 +34,22 @@ public class YuushyaClientFabricLike {
     public static void onInitializeClient() {
         YuushyaClient.onInitializeClient();
         ModelLoadingPlugin.register((context)->{
+            // This hook also sees every other mod's models. Build the 128
+            // showblock state IDs once per reload instead of once per model.
+            Map<ResourceLocation, Direction> showBlockDirections = new HashMap<>();
+            for (BlockState state : YuushyaRegistries.SHOW_BLOCK.get().getStateDefinition().getPossibleStates()) {
+                showBlockDirections.put(BlockModelShaper.stateToModelLocation(state), state.getValue(HORIZONTAL_FACING));
+            }
+            Map<ResourceLocation, Direction> directions = Map.copyOf(showBlockDirections);
             context.modifyModelAfterBake().register((model,modelBakeAfterContext)->{
                 if(modelBakeAfterContext.id()!=null){
                     if(modelBakeAfterContext.id().equals(SHOWBLOCK_ITEM_MODEL_RESOURCE_LOCATION)){
                         return new ShowBlockModel(Direction.SOUTH,model);
                     }
-                    for(BlockState blockState: YuushyaRegistries.BLOCKS.get("showblock").get().getStateDefinition().getPossibleStates())
-                        if (modelBakeAfterContext.id().equals(BlockModelShaper.stateToModelLocation(blockState))) {
-                            return new ShowBlockModel(blockState.getValue(HORIZONTAL_FACING),model);
-                        }
+                    Direction direction = directions.get(modelBakeAfterContext.id());
+                    if (direction != null) {
+                        return new ShowBlockModel(direction, model);
+                    }
                 }
                 return model;
             });
