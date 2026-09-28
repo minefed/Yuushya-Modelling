@@ -32,7 +32,8 @@ public class ShowBlockModel extends com.yuushya.modelling.blockentity.showblock.
         super(facing,backup);
     }
 
-    private static final Map<ItemStack,ShowBlockModel> itemModelCache = new HashMap<>();
+    //ItemStack 按实例比较，弱引用键避免已丢弃的物品堆一直留在缓存里
+    private static final Map<ItemStack,ShowBlockModel> itemModelCache = Collections.synchronizedMap(new WeakHashMap<>());
 
     @Override
     public boolean isVanillaAdapter() {
@@ -65,19 +66,22 @@ public class ShowBlockModel extends com.yuushya.modelling.blockentity.showblock.
             VanillaModelEncoder.emitItemQuads(backup, null, randomSupplier, context);
         }
         else{
-            List<TransformData> transformDatas = new ArrayList<>();
-            ITransformDataInventory.load(data,transformDatas);
-            VanillaModelEncoder.emitItemQuads(itemModelCache.computeIfAbsent(stack,(_stack)->new ShowBlockModel(Direction.SOUTH) {
-                @Override
-                public boolean isVanillaAdapter() {
-                    return true;
-                }
+            //只在缓存未命中时解析，命中时使用的一直是首次解析的数据
+            VanillaModelEncoder.emitItemQuads(itemModelCache.computeIfAbsent(stack,(_stack)->{
+                List<TransformData> transformDatas = new ArrayList<>();
+                ITransformDataInventory.load(data,transformDatas);
+                return new ShowBlockModel(Direction.SOUTH) {
+                    @Override
+                    public boolean isVanillaAdapter() {
+                        return true;
+                    }
 
-                @Override
-                public List<BakedQuad> getQuads(@Nullable BlockState blockState, @Nullable Direction side, RandomSource rand) {
-                    return super.getQuads(blockState,side,rand,transformDatas);
-                }
+                    @Override
+                    public List<BakedQuad> getQuads(@Nullable BlockState blockState, @Nullable Direction side, RandomSource rand) {
+                        return super.getQuads(blockState,side,rand,transformDatas);
+                    }
 
+                };
             }), null, randomSupplier, context);
         }
     }
