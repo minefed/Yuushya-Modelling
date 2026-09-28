@@ -114,7 +114,8 @@ public class ShowBlockEntity extends BlockEntity implements ITransformDataInvent
     }
     @Override
     public ClientboundBlockEntityDataPacket getUpdatePacket() {
-        CompoundTag compoundTag=getUpdateTag();
+        //下面的saveAdditional会写入同样的Blocks，不必先经由getUpdateTag()再序列化一次
+        CompoundTag compoundTag=super.getUpdateTag();
         return ClientboundBlockEntityDataPacket.create(this, (blockEntity)->{saveAdditional(compoundTag); return compoundTag;});
     }
 }
