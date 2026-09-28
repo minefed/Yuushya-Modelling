@@ -11,6 +11,7 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
@@ -38,6 +39,12 @@ public class ShowBlockEntityRender implements BlockEntityRenderer<ShowBlockEntit
     public static final Vector3d MIDDLE = new Vector3d(8,8,8);
     public static final Vector3d _MIDDLE = new Vector3d(-8,-8,-8);
     //private final Random random = new Random();
+    //render 只在以下计数大于 0 时绘制，否则跳过分发器的光照查询等开销
+    @Override
+    public boolean shouldRender(ShowBlockEntity blockEntity, Vec3 cameraPos) {
+        return (blockEntity.showFrame()||blockEntity.showRotAxis()||blockEntity.showPosAxis()||blockEntity.showText())
+                && BlockEntityRenderer.super.shouldRender(blockEntity, cameraPos);
+    }
     @Override
     public void render(ShowBlockEntity blockEntity, float tickDelta, @NotNull PoseStack matrixStack, @NotNull MultiBufferSource multiBufferSource, int light, int overlay) {
         if(blockEntity.showFrame()){
