@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.datafixers.util.Pair;
 import com.mojang.math.Axis;
 import net.minecraft.world.level.block.ChestBlock;
+import org.joml.Matrix4f;
 import org.joml.Vector4f;
 import com.yuushya.modelling.blockentity.TransformData;
 import com.yuushya.modelling.utils.YuushyaUtils;
@@ -38,46 +39,48 @@ public class ShowBlockModel implements BakedModel, UnbakedModel {
         this.facing = facing;
         this.backup = backup;
     }
+    private static final Direction[] DIRECTIONS = Arrays.copyOf(Direction.values(), Direction.values().length + 1); // 加个null
     public List<BakedQuad> getQuads(@Nullable BlockState state, @Nullable Direction side, @NotNull RandomSource rand, List<TransformData> transformDatas) {
         int vertexSize=YuushyaUtils.vertexSize();
         BlockRenderDispatcher blockRenderDispatcher =Minecraft.getInstance().getBlockRenderer();
         List<BakedQuad> finalQuads = new ArrayList<>();
         if (side != null) {return Collections.emptyList();}
-        ArrayList<Direction> directions = new ArrayList<>(Arrays.asList(Direction.values()));directions.add(null); // 加个null
         float f = facing.toYRot();
         PoseStack stack = new PoseStack();
         stack.translate(0.5f, 0.5f, 0.5f);
         stack.mulPose(Axis.YP.rotationDegrees(-f));
         stack.translate(-0.5f, -0.5f, -0.5f);
+        Vector4f vector4f = new Vector4f();
         for(TransformData transformData:transformDatas)if (transformData.isShown){
             BlockState blockState = transformData.blockState;
             BakedModel blockModel = blockRenderDispatcher.getBlockModel(blockState);
-            for (Direction value : directions) {
-                List<BakedQuad> blockModelQuads = blockModel.getQuads(blockState, value, rand);
-                for (BakedQuad bakedQuad : blockModelQuads) {
-                    int[] vertex = bakedQuad.getVertices().clone();
-                    // 执行核心方块的位移和旋转
-                    stack.pushPose();{
-                        YuushyaUtils.scale(stack, transformData.scales);
-                        YuushyaUtils.translate(stack,transformData.pos);
-                        YuushyaUtils.rotate(stack,transformData.rot);
+            // 执行核心方块的位移和旋转；同一个transformData的矩阵对每个面都相同，只算一次
+            stack.pushPose();{
+                YuushyaUtils.scale(stack, transformData.scales);
+                YuushyaUtils.translate(stack,transformData.pos);
+                YuushyaUtils.rotate(stack,transformData.rot);
+                Matrix4f pose = stack.last().pose();
+                for (Direction value : DIRECTIONS) {
+                    List<BakedQuad> blockModelQuads = blockModel.getQuads(blockState, value, rand);
+                    for (BakedQuad bakedQuad : blockModelQuads) {
+                        int[] vertex = bakedQuad.getVertices().clone();
                         for (int i = 0; i < 4; i++) {
-                            Vector4f vector4f = new Vector4f(// 顶点的原坐标
+                            vector4f.set(// 顶点的原坐标
                                     Float.intBitsToFloat(vertex[vertexSize*i]),
                                     Float.intBitsToFloat(vertex[vertexSize*i+1]),
                                     Float.intBitsToFloat(vertex[vertexSize*i+2]), 1);
-                            stack.last().pose().transform(vector4f);
+                            pose.transform(vector4f);
                             vertex[vertexSize*i] = Float.floatToRawIntBits(vector4f.x());
                             vertex[vertexSize*i+1] = Float.floatToRawIntBits(vector4f.y());
                             vertex[vertexSize*i+2] = Float.floatToRawIntBits(vector4f.z());
                         }
-                    }stack.popPose();
-                    if (bakedQuad.getTintIndex() > -1)//将方块状态和颜色编码到tintindex上，在渲染时解码找到对应颜色
-                        finalQuads.add(new BakedQuad(vertex, YuushyaUtils.encodeTintWithState(bakedQuad.getTintIndex(), blockState), bakedQuad.getDirection(), bakedQuad.getSprite(), bakedQuad.isShade()));
-                    else
-                        finalQuads.add(new BakedQuad(vertex, bakedQuad.getTintIndex(), bakedQuad.getDirection(), bakedQuad.getSprite(), bakedQuad.isShade()));
+                        if (bakedQuad.getTintIndex() > -1)//将方块状态和颜色编码到tintindex上，在渲染时解码找到对应颜色
+                            finalQuads.add(new BakedQuad(vertex, YuushyaUtils.encodeTintWithState(bakedQuad.getTintIndex(), blockState), bakedQuad.getDirection(), bakedQuad.getSprite(), bakedQuad.isShade()));
+                        else
+                            finalQuads.add(new BakedQuad(vertex, bakedQuad.getTintIndex(), bakedQuad.getDirection(), bakedQuad.getSprite(), bakedQuad.isShade()));
+                    }
                 }
-            }
+            }stack.popPose();
         }
         return finalQuads;
     }
